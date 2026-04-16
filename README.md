@@ -140,6 +140,26 @@ No other OpenEMR files are affected.
 - **PHP:** 8.0+ required
 - **Dependencies:** None beyond OpenEMR's core (no Composer packages needed)
 
+## Contributing
+
+Found a bug? Have a suggestion? Open an issue or pull request on this repo. We respond to all submissions.
+
 ## License
 
-Proprietary to Facets Novum LLC. The underlying OpenEMR integration points use OpenEMR's GPL-3.0-licensed APIs.
+This project is licensed under the **GNU General Public License v3.0** — the same license as OpenEMR itself. See [LICENSE](LICENSE) for the full text.
+
+Copyright (c) 2026 Facets Novum LLC.
+
+---
+
+## About EMRFlow
+
+This package is built and maintained by **[Facets Novum](https://emrflow.com)**, makers of **EMRFlow** — the therapy documentation and billing platform for OpenEMR.
+
+If your organization needs:
+- **FHIR R4 integration** with OpenEMR (automatic patient/practitioner/location sync)
+- **AI-powered clinical notes** (voice dictation → SOAP/DAP notes in seconds)
+- **Automated insurance claim submission** (eligibility checks, 837P generation, ERA posting)
+- **Solo practice mode** (independent therapists — no EHR required)
+
+Visit **[emrflow.com](https://emrflow.com)** or email **darrell@facetsnovum.com** to schedule a demo.
