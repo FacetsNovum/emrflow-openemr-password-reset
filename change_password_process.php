@@ -39,6 +39,8 @@ use OpenEMR\Common\Auth\AuthHash;
 ini_set('session.use_cookies', '1');
 ini_set('session.use_only_cookies', '1');
 ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_secure', '1');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -270,9 +272,8 @@ function passwordMeetsPolicy(string $pwd): bool
 // -----------------------
 // Email sending (dependency-light)
 // -----------------------
-function sendResetEmail(string $toEmail, string $link, string $host): bool
+function sendResetEmail(string $toEmail, string $link): bool
 {
-    
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $from = "no-reply@" . preg_replace('/[^A-Za-z0-9\.\-]/', '', (string)$host);
     if (empty($from) || strpos($from, '@') === false) {
@@ -308,7 +309,11 @@ function sendResetEmail(string $toEmail, string $link, string $host): bool
     return @mail($toEmail, $subject, $body, $headers);
     */
     
-    return @mail($toEmail, $subject, $body, implode("\r\n", $headers));
+    $sent = @mail($toEmail, $subject, $body, implode("\r\n", $headers));
+    if (!$sent) {
+        error_log("[PWD] mail() failed for password reset email to: " . substr($toEmail, 0, 3) . '***');
+    }
+    return $sent;
 }
 
 // -----------------------
@@ -424,7 +429,8 @@ $action = is_string($action) ? trim($action) : '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $method = is_string($method) ? strtoupper($method) : 'GET';
 
-// GET: check_email endpoint for UI (legacy flow only)
+// GET: check_email endpoint for UI (legacy flow only).
+// Requires a valid legacy token to prevent unauthenticated email enumeration.
 if ($method === 'GET' && $action === 'check_email') {
     $email = $_GET['email'] ?? '';
     $token = $_GET['token'] ?? '';
@@ -432,20 +438,25 @@ if ($method === 'GET' && $action === 'check_email') {
     $email = is_string($email) ? normalizeEmail($email) : '';
     $token = is_string($token) ? trim($token) : '';
 
+    // A valid legacy token is required — this endpoint is not public.
+    if ($token === '' || !function_exists('fetchValidLegacyPasswordChangeToken')) {
+        jsonResponse(['available' => false], 200);
+    }
+    $legacy = fetchValidLegacyPasswordChangeToken($token);
+    if (empty($legacy['user_id'])) {
+        jsonResponse(['available' => false], 200);
+    }
+
+    // Rate limit: reuse the token-verification throttle
+    if (function_exists('shouldThrottlePasswordTokenVerify') && shouldThrottlePasswordTokenVerify()) {
+        jsonResponse(['available' => false], 200);
+    }
+
     if (!isValidEmail($email)) {
         jsonResponse(['available' => false], 200);
     }
 
-    $excludeUserId = null;
-
-    // Only legacy tokens allow email changes; email-link tokens lock email.
-    if ($token !== '' && function_exists('fetchValidLegacyPasswordChangeToken')) {
-        $legacy = fetchValidLegacyPasswordChangeToken($token);
-        if (!empty($legacy['user_id'])) {
-            $excludeUserId = (int)$legacy['user_id'];
-        }
-    }
-
+    $excludeUserId = (int)$legacy['user_id'];
     jsonResponse(['available' => isEmailAvailable($email, $excludeUserId)], 200);
 }
 
@@ -500,7 +511,10 @@ if ($method === 'POST' && $action === 'request') {
     $secure = sqlQuery("SELECT password FROM users_secure WHERE id = ? LIMIT 1", [$userId]);
     $hash = (string)($secure['password'] ?? '');
 
-    if ($hash === '' || !password_verify($currentPassword, $hash)) {
+    // Use OpenEMR's AuthHash for verification — handles bcrypt + legacy hash formats
+    // from older OpenEMR versions (pre-upgrade SHA-based hashes).
+    $authHashVerifier = new AuthHash();
+    if ($hash === '' || !$authHashVerifier->passwordVerify($currentPassword, $hash)) {
         redirectToChangePassword($site_id, [
             'step' => 'request',
             'username' => $username,
@@ -524,6 +538,7 @@ if ($method === 'POST' && $action === 'request') {
         ]);
     }
 
+    session_regenerate_id(true);
     $_SESSION['last_user_id'] = $userId;
     $_SESSION['last_username'] = $username;
 
@@ -596,7 +611,7 @@ if ($method === 'POST' && $action === 'request_link') {
 
     
     // Best-effort email send; never disclose
-    sendResetEmail($email, $link, $host);
+    sendResetEmail($email, $link);
 
     $_SESSION['last_username'] = (string)($user['username'] ?? '');
 
