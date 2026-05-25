@@ -200,7 +200,22 @@ $csrfToken = pwdGenerateCsrfToken();
 // Resolve current email (only for update step)
 // -----------------------
 $currentEmail = '';
-$lockEmail  = true; // If 'true', then ALWAYS: "This email is locked for security. Contact your administrator to change it."; otherwise 'false' allows user to change
+// Email-change toggle for the password-change flow (username + current password).
+//
+//   true  — email field is read-only in the UI; user sees "This email is locked
+//           for security. Contact your administrator to change it." The default.
+//   false — user can update their google_signin_email at the same time as their
+//           password. The backend (validation, uniqueness check, UPDATE SQL) is
+//           already wired; this flag is purely a UI gate.
+//
+// Why locked by default: EMRFlow uses google_signin_email as an identity key in
+// downstream Firestore lookups, so arbitrary email changes would orphan those
+// records. If your OpenEMR install has no downstream systems keyed on the email
+// column, flip this to false. See README → "Optional: allow email changes".
+//
+// Note: the email-link reset flow ($isEmailLink) ignores this flag and is always
+// locked, because email is the identity proof in that flow.
+$lockEmail  = true;
 $isEmailLink  = false;
 $isEmailLocked = ($lockEmail || $isEmailLink);
 

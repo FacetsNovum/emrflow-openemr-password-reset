@@ -14,11 +14,11 @@ This package solves that with two secure, self-service flows:
 
 1. **Password change** — user knows their current password and wants to update it
    - Enter username + current password → verify → set new password
-   - Optionally update email address at the same time
+   - Email field is locked in the UI by default; see [Optional: allow email changes](#optional-allow-email-changes-in-the-password-change-flow) below
 
 2. **Email-link reset** — user forgot their password (or it's their first login)
    - Enter email address → receive a one-time reset link → click link → set new password
-   - Email is the identity proof; email changes are disabled in this flow
+   - Email is the identity proof; email changes are always locked in this flow
 
 ### Security Features
 
@@ -84,6 +84,21 @@ The email-link flow sends a one-time reset link to the user's email. For this to
    - Set SMTP host, port, username, password, and encryption type
 2. The "From" address uses `$GLOBALS['patient_reminder_sender_email']`
 3. **Without email configured**, only the legacy flow works (username + current password → change password). The email-link flow will silently fail to send.
+
+### Optional: allow email changes in the password-change flow
+
+The UI ships with the email field **locked** in both flows. The lock is controlled by a single flag near the top of `change_password.php`:
+
+```php
+$lockEmail = true; // line ~203
+```
+
+Set it to `false` and the password-change flow (username + current password) will allow the user to update their `google_signin_email` at the same time as their password. All the backend logic (email format validation, uniqueness check against the `users` table, the `UPDATE users SET google_signin_email` SQL) is already in place — the flag is purely a UI gate.
+
+Two notes:
+
+1. **The email-link reset flow ignores this flag.** It is always locked, because the email is the identity proof in that flow. You cannot change identity in the same transaction that is proving it.
+2. **Why it ships locked.** EMRFlow (the upstream maintainer's product) uses `google_signin_email` as an identity key in downstream Firestore lookups; allowing arbitrary email changes would orphan those records. If your OpenEMR install does not have downstream systems keyed on the email column, flipping the flag is safe.
 
 ### Verification Checklist
 
