@@ -48,6 +48,26 @@
 
 declare(strict_types=1);
 
+// ─── Branding (white-label) ────────────────────────────────────────────
+// This page ships EMRFlow-branded by default. To rebrand for your own
+// organization, edit the values below — nothing else needs to change.
+//   name     : wordmark text shown in the header ('' hides it)
+//   tagline  : small line shown under the card ('' hides it)
+//   accent   : header band + chrome color, any #rrggbb hex
+//   cta      : primary button fill color
+//   cta_text : text color on the primary button (must contrast with cta)
+//   logo     : optional path to a logo image relative to this file; null = built-in mark
+// All related shades (hover, deep, tint) are derived automatically from `accent`.
+$brand = [
+    'name'     => 'EMRFlow',
+    'tagline'  => 'Secure password management for OpenEMR',
+    'accent'   => '#006699',
+    'cta'      => '#E8913A',
+    'cta_text' => '#1F2937',
+    'logo'     => null,
+];
+// ────────────────────────────────────────────────────────────────────────
+
 // -----------------------
 // Session + headers
 // -----------------------
@@ -287,13 +307,61 @@ function a_out(string $s): string
     return h($s);
 }
 
+// -----------------------
+// Brand palette — derive all shades from the single $brand['accent'] hex
+// -----------------------
+function pwdSafeHex(string $v, string $fallback): string
+{
+    return preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : $fallback;
+}
+
+function pwdHexMix(string $hex, string $mix, float $w): string
+{
+    $hex = ltrim($hex, '#');
+    $mix = ltrim($mix, '#');
+    $r = hexdec(substr($hex, 0, 2)); $g = hexdec(substr($hex, 2, 2)); $b = hexdec(substr($hex, 4, 2));
+    $mr = hexdec(substr($mix, 0, 2)); $mg = hexdec(substr($mix, 2, 2)); $mb = hexdec(substr($mix, 4, 2));
+    return sprintf(
+        '#%02x%02x%02x',
+        (int)round($r + ($mr - $r) * $w),
+        (int)round($g + ($mg - $g) * $w),
+        (int)round($b + ($mb - $b) * $w)
+    );
+}
+
+$bName    = isset($brand['name']) ? (string)$brand['name'] : 'EMRFlow';
+$bTagline = isset($brand['tagline']) ? (string)$brand['tagline'] : '';
+$bLogo    = (isset($brand['logo']) && is_string($brand['logo']) && $brand['logo'] !== '') ? $brand['logo'] : null;
+$cBrand   = pwdSafeHex((string)($brand['accent'] ?? ''), '#006699');
+$cCta     = pwdSafeHex((string)($brand['cta'] ?? ''), '#e8913a');
+$cCtaText = pwdSafeHex((string)($brand['cta_text'] ?? ''), '#1f2937');
+
+$cBrandDark = pwdHexMix($cBrand, '#000000', 0.18);
+$cBrandDeep = pwdHexMix($cBrand, '#000000', 0.40);
+$cBrandTint = pwdHexMix($cBrand, '#ffffff', 0.90);
+$cBrandInk  = pwdHexMix($cBrand, '#000000', 0.20);
+$cBrandLite = pwdHexMix($cBrand, '#ffffff', 0.70);
+$cCtaDark   = pwdHexMix($cCta, '#000000', 0.12);
+
+$favLetter = $bName !== '' ? strtoupper(substr($bName, 0, 1)) : 'P';
+$favColor  = '%23' . ltrim($cBrand, '#');
+
+// Step-aware subtitle shown under the brand wordmark
+$headerSubtitle = 'Reset your password';
+if ($step === 'update') {
+    $headerSubtitle = 'Choose a new password';
+} elseif ($step === 'complete') {
+    $headerSubtitle = 'Password updated';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Change Password - OpenEMR</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Reset password<?= $bName !== '' ? ' · ' . h($bName) : '' ?></title>
 
     <?php
     $faviconPaths = [
@@ -316,266 +384,236 @@ function a_out(string $s): string
         }
     }
     if (!$faviconFound) {
-        echo '<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏥</text></svg>">';
+        echo '<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22' . $favColor . '%22/><text x=%2250%22 y=%2268%22 font-size=%2256%22 font-family=%22Arial,sans-serif%22 font-weight=%22700%22 fill=%22white%22 text-anchor=%22middle%22>' . h($favLetter) . '</text></svg>">';
     }
     ?>
 
-    <link rel="stylesheet" href="public/assets/bootstrap/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
         :root {
-            --primary-color: #0d6efd;
-            --success-color: #198754;
-            --danger-color: #dc3545;
-            --warning-color: #ffc107;
-            --light-bg: #f8f9fa;
-            --dark-text: #212529;
-            --border-radius: 12px;
-            --box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            --brand: <?= $cBrand ?>;          /* brand chrome (header band) */
+            --brand-dark: <?= $cBrandDark ?>;
+            --brand-deep: <?= $cBrandDeep ?>; /* depth color */
+            --brand-tint: <?= $cBrandTint ?>; /* light container tint */
+            --brand-ink: <?= $cBrandInk ?>;   /* readable brand text on tint */
+            --accent: <?= $cCta ?>;          /* primary CTA fill */
+            --accent-dark: <?= $cCtaDark ?>;
+            --accent-text: <?= $cCtaText ?>;  /* text on CTA (must pass contrast) */
+            --bg: #EEEEEE;             /* scaffold */
+            --surface: #FFFFFF;
+            --ink: #111827;            /* primary text */
+            --ink-muted: #49454F;      /* muted text (M3 onSurfaceVariant) */
+            --line: #d7dbdf;           /* input border */
+            --hairline: rgba(17,17,17,0.06);
+            --success: #43A047;
+            --warning: #B45309;
+            --error: #B91C1C;
+            --radius-card: 16px;
+            --radius-ctl: 10px;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            padding: 24px 16px;
+            -webkit-font-smoothing: antialiased;
+            line-height: 1.4;
         }
-        .container-wrapper { max-width: 550px; width: 100%; }
+        /* margin:auto centers the card when it fits, but lets the page scroll
+           (nothing clipped) when the content is taller than the viewport. */
+        .wrap { width: 100%; max-width: 460px; margin: auto; }
+
         .card {
-            background: white;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
+            background: var(--surface);
+            border-radius: var(--radius-card);
+            border: 1px solid var(--hairline);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 30px rgba(0,0,0,0.06);
             overflow: hidden;
-            animation: slideUp 0.5s ease-out;
         }
-        @keyframes slideUp { from { opacity:0; transform: translateY(30px);} to {opacity:1; transform: translateY(0);} }
-        .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .card-header i { font-size: 48px; margin-bottom: 15px; display: block; }
-        .card-header h2 { margin: 0; font-size: 24px; font-weight: 600; }
-        .card-header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 14px; }
-        .card-body { padding: 40px; }
-        .form-group { margin-bottom: 25px; }
-        .form-label { display:block; margin-bottom:8px; font-weight:500; color:var(--dark-text); font-size:14px; }
-        .form-label i { margin-right:8px; color:var(--primary-color); }
-        .input-wrapper { position: relative; }
-        .form-control {
-            width:100%;
-            padding:12px 45px 12px 15px;
-            border:2px solid #e0e0e0;
-            border-radius:8px;
-            font-size:15px;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus { outline:none; border-color:var(--primary-color); box-shadow:0 0 0 3px rgba(13,110,253,0.1); }
-        .toggle-password {
-            position:absolute;
-            right:15px;
-            top:50%;
-            transform: translateY(-50%);
-            cursor:pointer;
-            color:#6c757d;
-            transition: color 0.3s ease;
-        }
-        .toggle-password:hover { color: var(--primary-color); }
-        .password-strength { margin-top:10px; height:4px; background:#e0e0e0; border-radius:2px; overflow:hidden; display:none; }
-        .password-strength-bar { height:100%; width:0%; transition: all 0.3s ease; }
-        .strength-weak { background: var(--danger-color); }
-        .strength-medium { background: var(--warning-color); }
-        .strength-strong { background: var(--success-color); }
-        .password-requirements { margin-top:15px; padding:15px; background:var(--light-bg); border-radius:8px; font-size:13px; }
-        .password-requirements ul { list-style:none; margin:10px 0 0 0; padding:0; }
-        .password-requirements li { padding:5px 0; color:#6c757d; }
-        .password-requirements li i { margin-right:8px; width:16px; }
-        .password-requirements li.valid { color: var(--success-color); }
 
-        .btn {
-            width:100%;
-            padding:14px;
-            border:none;
-            border-radius:8px;
-            font-size:16px;
-            font-weight:600;
-            cursor:pointer;
-            transition: all 0.3s ease;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            gap:10px;
+        /* Brand header band — solid brand color, like the app AppBar */
+        .brand { background: var(--brand); color: #fff; padding: 24px 28px; }
+        .brand-row { display: flex; align-items: center; gap: 12px; }
+        .brand-mark {
+            width: 40px; height: 40px; border-radius: 11px;
+            background: #fff; display: inline-flex;
+            align-items: center; justify-content: center; flex: 0 0 auto;
         }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow:0 6px 20px rgba(102,126,234,0.4); }
-        .btn-success { background: var(--success-color); color:white; }
-        .btn-success:hover:not(:disabled) { background:#157347; transform: translateY(-2px); box-shadow:0 6px 20px rgba(25,135,84,0.4); }
-        .btn-secondary { background:#6c757d; color:white; }
-        .btn-secondary:hover:not(:disabled) { background:#5c636a; transform: translateY(-2px); box-shadow:0 6px 20px rgba(108,117,125,0.4); }
-        .btn:disabled { opacity:0.6; cursor:not-allowed; transform:none !important; }
+        .brand-logo { height: 32px; width: auto; display: block; }
+        .wordmark { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
+        .wordmark span { color: <?= $cBrandLite ?>; }   /* lighter brand tint */
+        .brand-sub { margin-top: 12px; font-size: 14px; color: rgba(255,255,255,0.85); }
 
+        .body { padding: 28px; }
+
+        /* Alerts — app chip pattern: colored icon + text on ~10% tint */
         .alert {
-            padding:15px 20px;
-            border-radius:8px;
-            margin-bottom:25px;
-            display:flex;
-            align-items:center;
-            gap:12px;
-            animation: slideDown 0.3s ease-out;
+            display: flex; gap: 10px; align-items: flex-start;
+            padding: 12px 14px; border-radius: var(--radius-ctl);
+            font-size: 14px; margin-bottom: 18px; line-height: 1.45;
         }
-        @keyframes slideDown { from {opacity:0; transform: translateY(-10px);} to {opacity:1; transform: translateY(0);} }
-        .alert-success { background:#d1e7dd; color:#0f5132; border:1px solid #badbcc; }
-        .alert-danger { background:#f8d7da; color:#842029; border:1px solid #f5c2c7; }
-        .alert-info { background:#cff4fc; color:#055160; border:1px solid #b6effb; }
-        .alert i { font-size:20px; }
+        .alert svg { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 1px; }
+        .alert-success { color: #2f7d33; background: rgba(67,160,71,0.10); border: 1px solid rgba(67,160,71,0.25); }
+        .alert-danger  { color: var(--error); background: rgba(185,28,28,0.08); border: 1px solid rgba(185,28,28,0.22); }
+        .alert-info    { color: var(--brand-ink); background: var(--brand-tint); border: 1px solid rgba(0,0,0,0.10); }
 
-        .progress-steps { display:flex; justify-content:space-between; margin-bottom:30px; position:relative; }
-        .progress-steps::before {
-            content:'';
-            position:absolute;
-            top:20px;
-            left:25%;
-            right:25%;
-            height:2px;
-            background:#e0e0e0;
-            z-index:0;
-        }
-        .progress-step { flex:1; text-align:center; position:relative; z-index:1; }
-        .progress-step-circle {
-            width:40px; height:40px; border-radius:50%;
-            background:white; border:3px solid #e0e0e0;
-            margin:0 auto 10px;
-            display:flex; align-items:center; justify-content:center;
-            font-weight:600; transition: all 0.3s ease;
-        }
-        .progress-step.active .progress-step-circle { border-color:var(--primary-color); background:var(--primary-color); color:white; }
-        .progress-step.completed .progress-step-circle { border-color:var(--success-color); background:var(--success-color); color:white; }
-        .progress-step-label { font-size:12px; color:#6c757d; font-weight:500; }
-        .progress-step.active .progress-step-label { color: var(--primary-color); }
+        .group { margin-bottom: 18px; }
+        label.lbl { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
+        label.lbl .req-star { color: var(--error); }
 
-        .current-email-display {
-            background: var(--light-bg);
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            color: #6c757d;
-            border-left: 3px solid var(--primary-color);
+        .field { position: relative; }
+        .control {
+            width: 100%; padding: 12px 14px; font-size: 15px; color: var(--ink);
+            background: #fff; border: 1px solid var(--line); border-radius: var(--radius-ctl);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .current-email-display strong { color: var(--dark-text); }
+        .control:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
+        .control[readonly] { background: #f3f4f6; color: #6b7280; cursor: not-allowed; }
+        .has-reveal .control { padding-right: 46px; }
+
+        .reveal {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; padding: 6px; cursor: pointer;
+            color: #6b7280; display: inline-flex; border-radius: 8px; line-height: 0;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+        .reveal:hover { color: var(--brand); background: rgba(0,0,0,0.05); }
+        .reveal svg { width: 20px; height: 20px; }
+
+        .hint { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: #6b7280; margin-top: 7px; }
+        .hint svg { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 1px; }
+
+        /* Buttons — brand CTA (configurable), brand-outline secondary */
+        .btn {
+            width: 100%; padding: 13px 16px; border: none; border-radius: var(--radius-ctl);
+            font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        .btn svg { width: 18px; height: 18px; }
+        .btn-primary { background: var(--accent); color: var(--accent-text); }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+        .btn-secondary { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
+        .btn-secondary:hover:not(:disabled) { background: var(--brand-tint); }
+        .btn-ghost { background: transparent; color: var(--ink-muted); }
+        .btn-ghost:hover:not(:disabled) { background: rgba(0,0,0,0.05); }
+        .btn-ghost.danger { color: var(--error); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn + .btn { margin-top: 10px; }
+
+        .divider {
+            display: flex; align-items: center; gap: 12px; margin: 22px 0;
+            color: #9aa1a8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+        }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e8eb; }
+
+        /* Password strength + requirements */
+        .strength { margin-top: 10px; height: 5px; background: #e5e8eb; border-radius: 3px; overflow: hidden; display: none; }
+        .strength-bar { height: 100%; width: 0%; border-radius: 3px; transition: width 0.25s ease; background: var(--error); }
+        .strength-bar.strength-weak { background: var(--error); }
+        .strength-bar.strength-medium { background: var(--warning); }
+        .strength-bar.strength-strong { background: var(--success); }
+
+        .req-box { margin-top: 12px; padding: 12px 14px; background: #f7f8f9; border-radius: var(--radius-ctl); font-size: 13px; }
+        .req-box strong { font-size: 12.5px; color: #374151; font-weight: 600; }
+        .req-list { list-style: none; margin: 8px 0 0; padding: 0; }
+        .req { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--ink-muted); }
+        .req .tick { flex: 0 0 auto; width: 16px; text-align: center; color: #c4c9ce; font-size: 13px; }
+        .req .tick::before { content: "\25CB"; }     /* ○ */
+        .req.valid { color: #2f7d33; }
+        .req.valid .tick { color: var(--success); }
+        .req.valid .tick::before { content: "\2713"; } /* ✓ */
+
+        .match { font-size: 13px; margin-top: 6px; font-weight: 500; display: none; }
+        .feedback { display: block; font-size: 13px; margin-top: 7px; }
+
+        .current-email {
+            padding: 11px 13px; background: var(--brand-tint); border-radius: var(--radius-ctl);
+            font-size: 13.5px; color: var(--brand-ink); margin-bottom: 10px;
+        }
+        .current-email strong { color: var(--brand-deep); }
+        .current-email .locked { margin-top: 6px; font-size: 12.5px; display: flex; gap: 6px; align-items: center; }
+        .current-email .locked svg { width: 13px; height: 13px; }
+
+        /* Completed state */
+        .done { text-align: center; padding: 8px 0 4px; }
+        .done .badge {
+            width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px;
+            background: rgba(67,160,71,0.12); display: flex; align-items: center; justify-content: center;
+        }
+        .done .badge svg { width: 34px; height: 34px; }
+        .done h3 { font-size: 19px; color: var(--ink); margin-bottom: 6px; }
+        .done p { color: var(--ink-muted); font-size: 14.5px; margin-bottom: 22px; line-height: 1.5; }
+
+        .footnote { text-align: center; margin-top: 16px; font-size: 12px; color: #9aa1a8; }
 
         .spinner {
-            display:inline-block;
-            width:16px; height:16px;
-            border:2px solid rgba(255,255,255,0.3);
-            border-radius:50%;
-            border-top-color:white;
-            animation: spin 0.8s linear infinite;
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid transparent; border-top-color: currentColor;
+            border-radius: 50%; animation: spin 0.7s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .success-icon { text-align:center; padding:20px; }
-        .success-icon i { font-size:64px; color:var(--success-color); margin-bottom:20px; }
-        .success-icon h3 { margin-bottom:10px; color:var(--dark-text); }
-        .success-icon p { color:#6c757d; margin-bottom:30px; }
-
+        /* Cancel modal */
         .modal-overlay {
-            display:none;
-            position:fixed;
-            top:0; left:0; right:0; bottom:0;
-            background: rgba(0,0,0,0.5);
-            z-index:1000;
-            animation: fadeIn 0.3s ease-out;
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(0,0,0,0.45); padding: 20px;
         }
-        .modal-overlay.active {
-            display:flex;
-            align-items:center;
-            justify-content:center;
+        .modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+        .modal {
+            background: #fff; border-radius: var(--radius-card); padding: 24px;
+            max-width: 380px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.25);
         }
-        .modal-content {
-            background:white;
-            border-radius: var(--border-radius);
-            padding:30px;
-            max-width:400px;
-            width:90%;
-            box-shadow: var(--box-shadow);
-            animation: slideUp 0.3s ease-out;
-        }
-        .modal-header { display:flex; align-items:center; gap:15px; margin-bottom:20px; }
-        .modal-header i { font-size:32px; color: var(--warning-color); }
-        .modal-header h3 { margin:0; color: var(--dark-text); }
-        .modal-body { margin-bottom:25px; color:#6c757d; line-height:1.6; }
-        .modal-actions { display:flex; gap:10px; }
-        .modal-actions .btn { flex:1; }
+        .modal h3 { font-size: 17px; color: var(--ink); margin-bottom: 8px; }
+        .modal p { color: var(--ink-muted); font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
+        .modal-actions { display: flex; gap: 10px; }
+        .modal-actions .btn { margin-top: 0; }
 
-        @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
-
-        #email-feedback { display:block; font-size:13px; margin-top:8px; }
-        #email-feedback i { margin-right:5px; }
-
-        .divider {
-            margin: 28px 0;
-            display:flex;
-            align-items:center;
-            gap:12px;
-            color:#6c757d;
-            font-size:13px;
-        }
-        .divider::before, .divider::after {
-            content:'';
-            flex:1;
-            height:1px;
-            background:#e0e0e0;
-        }
-
-        @media (max-width: 576px) {
-            .card-body { padding:25px; }
-            .card-header { padding:25px; }
-            .progress-step-label { font-size:10px; }
-            .progress-step-circle { width:35px; height:35px; }
+        @media (max-width: 520px) {
+            .body { padding: 22px; }
+            .brand { padding: 20px 22px; }
         }
     </style>
 </head>
 <body>
-<div class="container-wrapper">
-    <div class="card">
-        <div class="card-header">
-            <i class="fas fa-shield-alt"></i>
-            <h2>Account Security</h2>
-            <p>Update your password and email address</p>
-        </div>
-        <div class="card-body">
+<main class="wrap">
+    <section class="card" role="region" aria-label="Password reset">
+        <header class="brand">
+            <div class="brand-row">
+                <?php if ($bLogo && (file_exists(__DIR__ . '/' . $bLogo) || file_exists($bLogo))): ?>
+                    <img class="brand-logo" src="<?= h($bLogo) ?>" alt="<?= a_out($bName !== '' ? $bName : 'Logo') ?>">
+                <?php else: ?>
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="<?= h($cBrand) ?>" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                    </span>
+                <?php endif; ?>
+                <?php if ($bName !== ''): ?>
+                    <span class="wordmark"><?php if ($bName === 'EMRFlow'): ?>EMR<span>Flow</span><?php else: ?><?= t_out($bName) ?><?php endif; ?></span>
+                <?php endif; ?>
+            </div>
+            <p class="brand-sub"><?= t_out($headerSubtitle) ?></p>
+        </header>
+
+        <div class="body">
 
             <?php if ($error !== ''): ?>
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
                     <span><?= t_out($error) ?></span>
                 </div>
             <?php endif; ?>
 
             <?php if ($success !== ''): ?>
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg>
                     <span><?= t_out($success) ?></span>
                 </div>
             <?php endif; ?>
 
             <?php if ($step === 'request'): ?>
-                <div class="progress-steps">
-                    <div class="progress-step active">
-                        <div class="progress-step-circle">1</div>
-                        <div class="progress-step-label">Verify Identity</div>
-                    </div>
-                    <div class="progress-step">
-                        <div class="progress-step-circle">2</div>
-                        <div class="progress-step-label">Update Details</div>
-                    </div>
-                </div>
 
                 <!-- Legacy flow: username + current password -->
                 <form id="requestForm" method="POST" action="change_password_process.php">
@@ -583,39 +621,39 @@ function a_out(string $s): string
                     <input type="hidden" name="action" value="request">
                     <input type="hidden" name="site" value="<?= h($site_id) ?>">
 
-                    <div class="form-group">
-                        <label class="form-label"><i class="fas fa-user"></i>Username</label>
-                        <input
-                            type="text"
-                            name="username"
-                            class="form-control"
-                            placeholder="Enter your username"
-                            required
-                            autocomplete="username"
-                            value="<?= h($prefillUsername) ?>"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label"><i class="fas fa-lock"></i>Current Password</label>
-                        <div class="input-wrapper">
-                            <input type="password" name="current_password" id="current_password" class="form-control" placeholder="Enter your current password" required autocomplete="current-password">
-                            <i class="fas fa-eye toggle-password" onclick="togglePassword('current_password')"></i>
+                    <div class="group">
+                        <label class="lbl" for="username">Username</label>
+                        <div class="field">
+                            <input
+                                type="text"
+                                id="username"
+                                name="username"
+                                class="control"
+                                placeholder="Your OpenEMR username"
+                                required
+                                autocomplete="username"
+                                value="<?= h($prefillUsername) ?>"
+                            >
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-arrow-right"></i>
-                        Continue
-                    </button>
+                    <div class="group">
+                        <label class="lbl" for="current_password">Current password</label>
+                        <div class="field has-reveal">
+                            <input type="password" name="current_password" id="current_password" class="control" placeholder="Your current password" required autocomplete="current-password">
+                            <button type="button" class="reveal" data-target="current_password" aria-label="Show password" onclick="toggleReveal(this)"></button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Continue</button>
                 </form>
 
                 <div class="divider">or</div>
 
                 <!-- Email-link flow: email one-time setup/reset link -->
                 <div class="alert alert-info">
-                    <i class="fas fa-envelope"></i>
-                    <span>If you don’t know your current password, we can email you a one-time setup/reset link.</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg>
+                    <span>Don't know your current password? We can email you a one-time setup and reset link.</span>
                 </div>
 
                 <form id="emailLinkForm" method="POST" action="change_password_process.php">
@@ -623,45 +661,35 @@ function a_out(string $s): string
                     <input type="hidden" name="action" value="request_link">
                     <input type="hidden" name="site" value="<?= h($site_id) ?>">
 
-                    <div class="form-group">
-                        <label class="form-label"><i class="fas fa-envelope"></i>Sign-in Email</label>
-                        <input
-                            type="email"
-                            name="email"
-                            class="form-control"
-                            placeholder="Enter the email on your OpenEMR account"
-                            required
-                            autocomplete="email"
-                            value="<?= h($prefillEmail) ?>"
-                        >
-                        <small style="display:block; margin-top:8px; color:#6c757d; font-size:13px;">
-                            <i class="fas fa-lock"></i> We will email a secure link if the account exists. Please check your spam/junk folder.
-                        </small>
+                    <div class="group">
+                        <label class="lbl" for="email">Sign-in email</label>
+                        <div class="field">
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                class="control"
+                                placeholder="The email on your OpenEMR account"
+                                required
+                                autocomplete="email"
+                                value="<?= h($prefillEmail) ?>"
+                            >
+                        </div>
+                        <div class="hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                            <span>If the account exists, we will email a secure link. Please check your spam or junk folder.</span>
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane"></i>
-                        Email Me a One-Time Link
-                    </button>
+                    <button type="submit" class="btn btn-secondary">Email me a one-time link</button>
                 </form>
 
             <?php elseif ($step === 'update' && $token !== ''): ?>
 
-                <div class="progress-steps">
-                    <div class="progress-step completed">
-                        <div class="progress-step-circle"><i class="fas fa-check"></i></div>
-                        <div class="progress-step-label">Verify Identity</div>
-                    </div>
-                    <div class="progress-step active">
-                        <div class="progress-step-circle">2</div>
-                        <div class="progress-step-label">Update Details</div>
-                    </div>
-                </div>
-
                 <?php if ($error === ''): ?>
                     <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Identity verified! Update your password <?= $isEmailLink ? '' : 'and email ' ?>below.</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg>
+                        <span>Identity verified. Choose a new password<?= $isEmailLink ? '' : ' and confirm your sign-in email' ?> below.</span>
                     </div>
                 <?php endif; ?>
 
@@ -671,146 +699,124 @@ function a_out(string $s): string
                     <input type="hidden" name="token" value="<?= h($token) ?>">
                     <input type="hidden" name="site" value="<?= h($site_id) ?>">
 
-                    <div class="form-group">
-                        <label class="form-label"><i class="fas fa-key"></i>New Password</label>
-                        <div class="input-wrapper">
-                            <input type="password" name="new_password" id="new_password" class="form-control" placeholder="Enter new password" required autocomplete="new-password">
-                            <i class="fas fa-eye toggle-password" onclick="togglePassword('new_password')"></i>
+                    <div class="group">
+                        <label class="lbl" for="new_password">New password</label>
+                        <div class="field has-reveal">
+                            <input type="password" name="new_password" id="new_password" class="control" placeholder="Enter a new password" required autocomplete="new-password">
+                            <button type="button" class="reveal" data-target="new_password" aria-label="Show password" onclick="toggleReveal(this)"></button>
                         </div>
-                        <div class="password-strength" id="password-strength">
-                            <div class="password-strength-bar" id="password-strength-bar"></div>
+                        <div class="strength" id="password-strength">
+                            <div class="strength-bar" id="password-strength-bar"></div>
                         </div>
-                        <div class="password-requirements">
-                            <strong>Password must contain:</strong>
-                            <ul id="password-requirements">
-                                <li id="req-length"><i class="fas fa-circle"></i> At least 8 characters</li>
-                                <li id="req-uppercase"><i class="fas fa-circle"></i> One uppercase letter</li>
-                                <li id="req-lowercase"><i class="fas fa-circle"></i> One lowercase letter</li>
-                                <li id="req-number"><i class="fas fa-circle"></i> One number</li>
-                                <li id="req-special"><i class="fas fa-circle"></i> One special character</li>
+                        <div class="req-box">
+                            <strong>Password must contain</strong>
+                            <ul class="req-list" id="password-requirements">
+                                <li id="req-length" class="req"><span class="tick"></span> At least 8 characters</li>
+                                <li id="req-uppercase" class="req"><span class="tick"></span> One uppercase letter</li>
+                                <li id="req-lowercase" class="req"><span class="tick"></span> One lowercase letter</li>
+                                <li id="req-number" class="req"><span class="tick"></span> One number</li>
+                                <li id="req-special" class="req"><span class="tick"></span> One special character</li>
                             </ul>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label"><i class="fas fa-check-double"></i>Confirm New Password</label>
-                        <div class="input-wrapper">
-                            <input type="password" name="confirm_password" id="confirm_password" class="form-control" placeholder="Confirm new password" required autocomplete="new-password">
-                            <i class="fas fa-eye toggle-password" onclick="togglePassword('confirm_password')"></i>
+                    <div class="group">
+                        <label class="lbl" for="confirm_password">Confirm new password</label>
+                        <div class="field has-reveal">
+                            <input type="password" name="confirm_password" id="confirm_password" class="control" placeholder="Re-enter the new password" required autocomplete="new-password">
+                            <button type="button" class="reveal" data-target="confirm_password" aria-label="Show password" onclick="toggleReveal(this)"></button>
                         </div>
-                        <small id="password-match" style="display:none; margin-top:5px;"></small>
+                        <small id="password-match" class="match"></small>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label">
-                            <i class="fas fa-envelope"></i>
-                            Sign-in Email <span style="color: var(--danger-color);">*</span>
-                        </label>
+                    <div class="group">
+                        <label class="lbl" for="new_email">Sign-in email <span class="req-star">*</span></label>
 
                         <?php if ($currentEmail !== ''): ?>
-                            <div class="current-email-display">
-                                <i class="fas fa-info-circle"></i> Current: <strong><?= t_out($currentEmail) ?></strong>
+                            <div class="current-email">
+                                Current: <strong><?= t_out($currentEmail) ?></strong>
                                 <?php if ($isEmailLink): ?>
-                                    <div style="margin-top:6px; font-size:13px;">
-                                        <i class="fas fa-lock"></i> Email changes are disabled for one-time email links.
+                                    <div class="locked">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                                        Email changes are disabled for one-time email links.
                                     </div>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
-                        <input
-                            type="email"
-                            name="new_email"
-                            id="new_email"
-                            class="form-control"
-                            placeholder="Enter email address"
-                            value="<?= a_out($currentEmail) ?>"
-                            required
-                            <?= $isEmailLocked ? 'readonly' : '' ?>
-                        >
+                        <div class="field">
+                            <input
+                                type="email"
+                                name="new_email"
+                                id="new_email"
+                                class="control"
+                                placeholder="Enter email address"
+                                value="<?= a_out($currentEmail) ?>"
+                                required
+                                <?= $isEmailLocked ? 'readonly' : '' ?>
+                            >
+                        </div>
 
-                        <small style="display:block; margin-top:8px; color:#6c757d; font-size:13px;">
-                            <i class="fas fa-lightbulb"></i>
-                            <?php if ($isEmailLocked): ?>
-                                This email is locked for security. Contact your administrator to change it.
-                            <?php else: ?>
-                                Email address is required for Sign-in and must be unique.
-                            <?php endif; ?>
-                        </small>
+                        <div class="hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                            <span><?php if ($isEmailLocked): ?>This email is locked for security. Contact your administrator to change it.<?php else: ?>Your sign-in email is required and must be unique.<?php endif; ?></span>
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success" id="submitBtn" disabled>
-                        <i class="fas fa-save"></i>
-                        <?= $isEmailLink ? 'Update Password' : 'Update Password & Email' ?>
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                        <?= $isEmailLink ? 'Update password' : 'Update password and email' ?>
                     </button>
 
-                    <button type="button" class="btn btn-secondary" onclick="confirmCancel()" style="margin-top:10px;">
-                        <i class="fas fa-times"></i>
-                        Cancel
-                    </button>
+                    <button type="button" class="btn btn-ghost" onclick="confirmCancel()">Cancel</button>
                 </form>
 
             <?php elseif ($step === 'complete'): ?>
 
-                <div class="progress-steps">
-                    <div class="progress-step completed">
-                        <div class="progress-step-circle"><i class="fas fa-check"></i></div>
-                        <div class="progress-step-label">Verify Identity</div>
+                <div class="done">
+                    <div class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#43A047" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5 5.5-6"></path></svg>
                     </div>
-                    <div class="progress-step completed">
-                        <div class="progress-step-circle"><i class="fas fa-check"></i></div>
-                        <div class="progress-step-label">Update Details</div>
-                    </div>
-                </div>
+                    <h3>Password updated</h3>
+                    <p><?= t_out($success !== '' ? $success : 'Your password has been updated. You can now sign in with your new password.') ?></p>
 
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <span><?= t_out($success !== '' ? $success : 'Your account has been updated successfully!') ?></span>
-                </div>
-
-                <div class="success-icon">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>All Set!</h3>
-                    <p>Your password has been changed and your account is secure.</p>
-
-                    <a href="change_password.php?site=<?= h($site_id) ?>"
-                       class="btn btn-primary" style="text-decoration:none;">
-                        <i class="fas fa-redo"></i>
-                        Start Over
-                    </a>
+                    <a href="interface/login/login.php?site=<?= h($site_id) ?>" class="btn btn-primary">Go to sign in</a>
+                    <a href="change_password.php?site=<?= h($site_id) ?>" class="btn btn-secondary">Reset another password</a>
                 </div>
 
             <?php else: ?>
                 <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
                     <span>Invalid request. Please start over.</span>
                 </div>
             <?php endif; ?>
 
         </div>
-    </div>
-</div>
+    </section>
+    <?php if ($bTagline !== '' || $bName !== ''): ?>
+    <p class="footnote"><?= t_out($bTagline) ?><?= ($bTagline !== '' && $bName !== '') ? ' · ' : '' ?><?= $bName !== '' ? t_out($bName) : '' ?></p>
+    <?php endif; ?>
+</main>
 
-<script src="public/assets/jquery/dist/jquery.min.js"></script>
 <script>
-    function togglePassword(fieldId) {
-        const field = document.getElementById(fieldId);
-        const icon = field.nextElementSibling;
+    // Inline SVG icon strings for the password reveal toggle
+    var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+    var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"></path><path d="M9.9 4.6A10.9 10.9 0 0 1 12 4.5c6.5 0 10 7 10 7a18 18 0 0 1-3.2 4.3"></path><path d="M6.1 6.1A18 18 0 0 0 2 11.5s3.5 7 10 7a10.9 10.9 0 0 0 3.4-.5"></path></svg>';
 
-        if (field.type === 'password') {
-            field.type = 'text';
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
-        } else {
-            field.type = 'password';
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
-        }
+    // Initialize each reveal button with the eye icon
+    document.querySelectorAll('.reveal').forEach(function (b) { b.innerHTML = EYE; });
+
+    function toggleReveal(btn) {
+        var field = document.getElementById(btn.getAttribute('data-target'));
+        if (!field) return;
+        var show = field.type === 'password';
+        field.type = show ? 'text' : 'password';
+        btn.innerHTML = show ? EYE_OFF : EYE;
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     }
 
     function checkPasswordStrength(password) {
-        let strength = 0;
-        const requirements = {
+        var strength = 0;
+        var requirements = {
             length: password.length >= 8,
             uppercase: /[A-Z]/.test(password),
             lowercase: /[a-z]/.test(password),
@@ -818,31 +824,24 @@ function a_out(string $s): string
             special: /[^A-Za-z0-9]/.test(password)
         };
 
-        Object.keys(requirements).forEach(req => {
-            const element = document.getElementById(`req-${req}`);
+        Object.keys(requirements).forEach(function (req) {
+            var element = document.getElementById('req-' + req);
             if (!element) return;
-
             if (requirements[req]) {
                 element.classList.add('valid');
-                element.querySelector('i').classList.remove('fa-circle');
-                element.querySelector('i').classList.add('fa-check-circle');
                 strength++;
             } else {
                 element.classList.remove('valid');
-                element.querySelector('i').classList.remove('fa-check-circle');
-                element.querySelector('i').classList.add('fa-circle');
             }
         });
 
-        const strengthBar = document.getElementById('password-strength-bar');
-        const strengthContainer = document.getElementById('password-strength');
+        var strengthBar = document.getElementById('password-strength-bar');
+        var strengthContainer = document.getElementById('password-strength');
 
         if (password.length > 0) {
             strengthContainer.style.display = 'block';
-            const percentage = (strength / 5) * 100;
-            strengthBar.style.width = percentage + '%';
-
-            strengthBar.className = 'password-strength-bar';
+            strengthBar.style.width = ((strength / 5) * 100) + '%';
+            strengthBar.className = 'strength-bar';
             if (strength <= 2) strengthBar.classList.add('strength-weak');
             else if (strength <= 4) strengthBar.classList.add('strength-medium');
             else strengthBar.classList.add('strength-strong');
@@ -854,12 +853,12 @@ function a_out(string $s): string
     }
 
     if (document.getElementById('new_password')) {
-        const newPassword = document.getElementById('new_password');
-        const confirmPassword = document.getElementById('confirm_password');
-        const submitBtn = document.getElementById('submitBtn');
-        const matchIndicator = document.getElementById('password-match');
+        var newPassword = document.getElementById('new_password');
+        var confirmPassword = document.getElementById('confirm_password');
+        var submitBtn = document.getElementById('submitBtn');
+        var matchIndicator = document.getElementById('password-match');
 
-        newPassword.addEventListener('input', function() {
+        newPassword.addEventListener('input', function () {
             checkPasswordStrength(this.value);
             validatePasswords();
         });
@@ -867,17 +866,17 @@ function a_out(string $s): string
         confirmPassword.addEventListener('input', validatePasswords);
 
         function validatePasswords() {
-            const isStrong = checkPasswordStrength(newPassword.value);
-            const passwordsMatch = newPassword.value === confirmPassword.value;
+            var isStrong = checkPasswordStrength(newPassword.value);
+            var passwordsMatch = newPassword.value === confirmPassword.value;
 
             if (confirmPassword.value.length > 0) {
                 matchIndicator.style.display = 'block';
                 if (passwordsMatch) {
                     matchIndicator.textContent = '✓ Passwords match';
-                    matchIndicator.style.color = 'var(--success-color)';
+                    matchIndicator.style.color = 'var(--success)';
                 } else {
                     matchIndicator.textContent = '✗ Passwords do not match';
-                    matchIndicator.style.color = 'var(--danger-color)';
+                    matchIndicator.style.color = 'var(--error)';
                 }
             } else {
                 matchIndicator.style.display = 'none';
@@ -887,9 +886,9 @@ function a_out(string $s): string
         }
     }
 
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', function() {
-            const submitBtn = this.querySelector('button[type="submit"]');
+    document.querySelectorAll('form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var submitBtn = this.querySelector('button[type="submit"]');
             if (submitBtn && !submitBtn.disabled) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner"></span> Processing...';
@@ -898,123 +897,95 @@ function a_out(string $s): string
     });
 
     // Email availability check (disabled for email-link tokens because email is locked read-only)
-    const isEmailLink = <?= $isEmailLink ? 'true' : 'false' ?>;
+    var isEmailLink = <?= $isEmailLink ? 'true' : 'false' ?>;
 
     if (!isEmailLink && document.getElementById('new_email')) {
-        const emailField = document.getElementById('new_email');
-        const emailFeedback = document.createElement('small');
+        var emailField = document.getElementById('new_email');
+        var emailFeedback = document.createElement('small');
         emailFeedback.id = 'email-feedback';
+        emailFeedback.className = 'feedback';
         emailFeedback.style.display = 'none';
-        emailField.parentNode.appendChild(emailFeedback);
+        emailField.parentNode.parentNode.appendChild(emailFeedback);
 
-        let emailCheckTimeout;
+        var emailCheckTimeout;
 
-        emailField.addEventListener('input', function() {
+        emailField.addEventListener('input', function () {
             clearTimeout(emailCheckTimeout);
-            const email = this.value.trim();
-            const currentEmail = <?= json_encode($currentEmail) ?>;
+            var email = this.value.trim();
+            var currentEmail = <?= json_encode($currentEmail) ?>;
 
-            if (!email || email === currentEmail) {
-                emailFeedback.style.display = 'none';
-                return;
-            }
-
-            if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-                emailFeedback.style.display = 'none';
-                return;
-            }
+            if (!email || email === currentEmail) { emailFeedback.style.display = 'none'; return; }
+            if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) { emailFeedback.style.display = 'none'; return; }
 
             emailFeedback.style.display = 'block';
-            emailFeedback.style.color = '#6c757d';
-            emailFeedback.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking availability...';
+            emailFeedback.style.color = '#6b7280';
+            emailFeedback.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;"></span> Checking availability...';
 
-            emailCheckTimeout = setTimeout(function() {
-                checkEmailAvailability(email);
-            }, 450);
+            emailCheckTimeout = setTimeout(function () { checkEmailAvailability(email); }, 450);
         });
 
         function checkEmailAvailability(email) {
-            const token = <?= json_encode($token) ?>;
-            const site = <?= json_encode($site_id) ?>;
+            var token = <?= json_encode($token) ?>;
+            var site = <?= json_encode($site_id) ?>;
 
             fetch('change_password_process.php?action=check_email&email=' + encodeURIComponent(email) +
                   '&token=' + encodeURIComponent(token) +
                   '&site=' + encodeURIComponent(site))
-                .then(response => response.json())
-                .then(data => {
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
                     if (data.available) {
-                        emailFeedback.style.color = 'var(--success-color)';
-                        emailFeedback.innerHTML = '<i class="fas fa-check-circle"></i> Email available';
+                        emailFeedback.style.color = 'var(--success)';
+                        emailFeedback.innerHTML = '✓ Email available';
                     } else {
-                        emailFeedback.style.color = 'var(--danger-color)';
-                        emailFeedback.innerHTML = '<i class="fas fa-times-circle"></i> Email already in use';
+                        emailFeedback.style.color = 'var(--error)';
+                        emailFeedback.innerHTML = '✗ Email already in use';
                     }
                 })
-                .catch(() => {
-                    emailFeedback.style.display = 'none';
-                });
+                .catch(function () { emailFeedback.style.display = 'none'; });
         }
     }
 
     function confirmCancel() { showCancelModal(); }
 
     function showCancelModal() {
-        const existingModal = document.querySelector('.modal-overlay');
+        var existingModal = document.querySelector('.modal-overlay');
         if (existingModal) existingModal.remove();
 
-        const modal = document.createElement('div');
+        var modal = document.createElement('div');
         modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <h3>Cancel Password Change?</h3>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to cancel? Any information you've entered will be lost and you'll need to start over.</p>
-                </div>
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" id="modalCancelBtn">
-                        <i class="fas fa-arrow-left"></i>
-                        Go Back
-                    </button>
-                    <button class="btn btn-primary" id="modalConfirmBtn">
-                        <i class="fas fa-check"></i>
-                        Yes, Cancel
-                    </button>
-                </div>
-            </div>
-        `;
+        modal.innerHTML =
+            '<div class="modal">' +
+                '<h3>Cancel password change?</h3>' +
+                '<p>Anything you have entered will be lost and you will need to start over.</p>' +
+                '<div class="modal-actions">' +
+                    '<button class="btn btn-secondary" id="modalCancelBtn">Go back</button>' +
+                    '<button class="btn btn-ghost danger" id="modalConfirmBtn">Yes, cancel</button>' +
+                '</div>' +
+            '</div>';
 
         document.body.appendChild(modal);
-        setTimeout(() => modal.classList.add('active'), 10);
+        setTimeout(function () { modal.classList.add('active'); }, 10);
 
         document.getElementById('modalCancelBtn').addEventListener('click', closeCancelModal);
         document.getElementById('modalConfirmBtn').addEventListener('click', proceedCancel);
 
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) closeCancelModal();
-        });
+        modal.addEventListener('click', function (e) { if (e.target === modal) closeCancelModal(); });
     }
 
     function closeCancelModal() {
-        const modal = document.querySelector('.modal-overlay');
+        var modal = document.querySelector('.modal-overlay');
         if (modal) {
             modal.classList.remove('active');
-            setTimeout(() => modal.remove(), 300);
+            setTimeout(function () { modal.remove(); }, 200);
         }
     }
 
     // update step has no username input; server will use session fallback
     function proceedCancel() {
-        window.location.href =
-            'change_password.php?site=<?= h($site_id) ?>' +
-            '&cancelled=1';
+        window.location.href = 'change_password.php?site=<?= h($site_id) ?>&cancelled=1';
     }
 
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeCancelModal();
-    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCancelModal(); });
 </script>
 </body>
 </html>

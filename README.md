@@ -100,6 +100,28 @@ Two notes:
 1. **The email-link reset flow ignores this flag.** It is always locked, because the email is the identity proof in that flow. You cannot change identity in the same transaction that is proving it.
 2. **Why it ships locked.** EMRFlow (the upstream maintainer's product) uses `google_signin_email` as an identity key in downstream Firestore lookups; allowing arbitrary email changes would orphan those records. If your OpenEMR install does not have downstream systems keyed on the email column, flipping the flag is safe.
 
+### Branding (white-label)
+
+The page ships EMRFlow-branded by default, but it is fully white-label. All branding is driven by a single `$brand` config block at the top of `change_password.php` — nothing else needs to change:
+
+```php
+$brand = [
+    'name'     => 'EMRFlow',                               // wordmark in the header ('' hides it)
+    'tagline'  => 'Secure password management for OpenEMR', // small line under the card
+    'accent'   => '#006699',                               // header band + chrome color
+    'cta'      => '#E8913A',                               // primary button fill
+    'cta_text' => '#1F2937',                               // text on the primary button (must contrast with cta)
+    'logo'     => null,                                    // optional logo path relative to this file; null = built-in mark
+];
+```
+
+- Set `accent` to any `#rrggbb` hex; the page derives all related shades (hover, depth, light tint, the wordmark accent) automatically — you only pick one color.
+- Point `logo` at an image (e.g. `'sites/default/images/your-logo.png'`) to replace the built-in lock mark.
+- Set `name` to `''` to hide the wordmark, or to your own organization's name. The two-tone treatment is applied only to the default `EMRFlow` wordmark; any other name renders plain.
+- Leave `cta_text` readable against `cta` — light text on a light button (or dark on dark) fails contrast. The defaults pair dark text `#1F2937` on amber, which passes WCAG AA.
+
+The page has **no external dependencies** — no CDN, Bootstrap, jQuery, or web fonts. It renders entirely from inline CSS and SVG, so it works on locked-down or offline installs and never phones home.
+
 ### Verification Checklist
 
 After installation:
