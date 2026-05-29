@@ -1,6 +1,6 @@
 # EMRFlow — OpenEMR Self-Service Password Reset
 
-> **Compatible with:** OpenEMR 7.0.2 Patch 3 (may work on adjacent versions)
+> **Compatible with:** OpenEMR 7.0.2 Patch 3 and 8.0.0 Patch 3 (both tested); also verified against the 8.1 development build
 > **Maintained by:** Facets Novum LLC (Darrell Henry)
 > **Files:** 3 (drop-in, no other modifications required)
 
@@ -151,7 +151,7 @@ No other OpenEMR files are affected.
 
 ## Compatibility
 
-- **OpenEMR:** 7.0.2 Patch 3 (tested). Should work on 7.x generally — uses only `sqlQuery()`, `sqlStatement()`, `AuthHash`, and `$GLOBALS` which are stable across OpenEMR 7.x.
+- **OpenEMR:** 7.0.2 Patch 3 and 8.0.0 Patch 3 (both tested). Uses only `sqlQuery()`, `sqlStatement()`, `AuthHash`, and `$GLOBALS`, which are stable across OpenEMR 7.x, 8.0, and 8.1. On a clean 8.0.0(3) install both flows were verified end to end: auto table creation, the username + current-password change flow (with `users_secure` history shift), the email-link reset flow, password-policy enforcement, and reuse prevention against the last 5 passwords. The same battery was re-run against the 8.1 development build (8.1.0-dev) with identical results.
 - **PHP:** 8.0+ required
 - **Dependencies:** None beyond OpenEMR's core (no Composer packages needed)
 
