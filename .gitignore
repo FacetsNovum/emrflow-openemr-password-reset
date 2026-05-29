@@ -4,3 +4,6 @@
 *~
 .idea/
 .vscode/
+
+# Internal working drafts (not part of the public package)
+FORUM_POST_DRAFT.md
