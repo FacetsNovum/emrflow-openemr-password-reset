@@ -3,7 +3,7 @@
 // EMRFlow CUSTOM FILE
 // Modified by: Facets Novum LLC (Darrell Henry)
 // Purpose: Backend processor for public password change/reset flows
-// WHY: Companion to change_password.php — handles token verification, password hashing
+// WHY: Companion to change_password.php, handles token verification, password hashing
 //      (via OpenEMR's AuthHash), and users_secure table updates outside the normal
 //      authenticated session, enabling password resets without admin intervention.
 // ──────────────────────────────────────────────────────────────────────
@@ -438,7 +438,7 @@ if ($method === 'GET' && $action === 'check_email') {
     $email = is_string($email) ? normalizeEmail($email) : '';
     $token = is_string($token) ? trim($token) : '';
 
-    // A valid legacy token is required — this endpoint is not public.
+    // A valid legacy token is required: this endpoint is not public.
     if ($token === '' || !function_exists('fetchValidLegacyPasswordChangeToken')) {
         jsonResponse(['available' => false], 200);
     }
@@ -511,7 +511,7 @@ if ($method === 'POST' && $action === 'request') {
     $secure = sqlQuery("SELECT password FROM users_secure WHERE id = ? LIMIT 1", [$userId]);
     $hash = (string)($secure['password'] ?? '');
 
-    // Use OpenEMR's AuthHash for verification — handles bcrypt + legacy hash formats
+    // Use OpenEMR's AuthHash for verification, handles bcrypt + legacy hash formats
     // from older OpenEMR versions (pre-upgrade SHA-based hashes).
     $authHashVerifier = new AuthHash();
     if ($hash === '' || !$authHashVerifier->passwordVerify($currentPassword, $hash)) {

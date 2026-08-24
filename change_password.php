@@ -2,7 +2,7 @@
 // ─── EMRFlow Modifications ─────────────────────────────────────────────
 // EMRFlow CUSTOM FILE
 // Modified by: Facets Novum LLC (Darrell Henry)
-// Purpose: Public password change/reset UI — no OpenEMR login required
+// Purpose: Public password change/reset UI, no OpenEMR login required
 // WHY: OpenEMR has no public-facing password change mechanism. Therapists who forget
 //      their password or need initial setup cannot access the built-in password change
 //      (which requires being logged in). This provides two secure flows: legacy credential
@@ -50,7 +50,7 @@ declare(strict_types=1);
 
 // ─── Branding (white-label) ────────────────────────────────────────────
 // This page ships EMRFlow-branded by default. To rebrand for your own
-// organization, edit the values below — nothing else needs to change.
+// organization, edit the values below. Nothing else needs to change.
 //   name     : wordmark text shown in the header ('' hides it)
 //   tagline  : small line shown under the card ('' hides it)
 //   accent   : header band + chrome color, any #rrggbb hex
@@ -222,9 +222,9 @@ $csrfToken = pwdGenerateCsrfToken();
 $currentEmail = '';
 // Email-change toggle for the password-change flow (username + current password).
 //
-//   true  — email field is read-only in the UI; user sees "This email is locked
+//   true:  email field is read-only in the UI; user sees "This email is locked
 //           for security. Contact your administrator to change it." The default.
-//   false — user can update their google_signin_email at the same time as their
+//   false: user can update their google_signin_email at the same time as their
 //           password. The backend (validation, uniqueness check, UPDATE SQL) is
 //           already wired; this flag is purely a UI gate.
 //
@@ -308,7 +308,7 @@ function a_out(string $s): string
 }
 
 // -----------------------
-// Brand palette — derive all shades from the single $brand['accent'] hex
+// Brand palette: derive all shades from the single $brand['accent'] hex
 // -----------------------
 function pwdSafeHex(string $v, string $fallback): string
 {
@@ -434,7 +434,7 @@ if ($step === 'update') {
             overflow: hidden;
         }
 
-        /* Brand header band — solid brand color, like the app AppBar */
+        /* Brand header band: solid brand color, like the app AppBar */
         .brand { background: var(--brand); color: #fff; padding: 24px 28px; }
         .brand-row { display: flex; align-items: center; gap: 12px; }
         .brand-mark {
@@ -449,7 +449,7 @@ if ($step === 'update') {
 
         .body { padding: 28px; }
 
-        /* Alerts — app chip pattern: colored icon + text on ~10% tint */
+        /* Alerts, app chip pattern: colored icon + text on ~10% tint */
         .alert {
             display: flex; gap: 10px; align-items: flex-start;
             padding: 12px 14px; border-radius: var(--radius-ctl);
@@ -486,7 +486,7 @@ if ($step === 'update') {
         .hint { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: #6b7280; margin-top: 7px; }
         .hint svg { flex: 0 0 auto; width: 14px; height: 14px; margin-top: 1px; }
 
-        /* Buttons — brand CTA (configurable), brand-outline secondary */
+        /* Buttons: brand CTA (configurable), brand-outline secondary */
         .btn {
             width: 100%; padding: 13px 16px; border: none; border-radius: var(--radius-ctl);
             font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none;

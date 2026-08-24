@@ -1,4 +1,4 @@
-# EMRFlow — OpenEMR Self-Service Password Reset
+# EMRFlow: OpenEMR Self-Service Password Reset
 
 > **Compatible with:** OpenEMR 7.0.2 Patch 3 and 8.0.0 Patch 3 (both tested); also verified against the 8.1 development build
 > **Maintained by:** Facets Novum LLC (Darrell Henry)
@@ -8,15 +8,15 @@
 
 ## What This Does
 
-Adds a **public-facing password change and reset page** to any OpenEMR installation. OpenEMR has no built-in way for users to change or reset their passwords without being logged in — if a therapist forgets their password, an admin has to manually reset it in the database.
+Adds a **public-facing password change and reset page** to any OpenEMR installation. OpenEMR has no built-in way for users to change or reset their passwords without being logged in. If a therapist forgets their password, an admin has to manually reset it in the database.
 
 This package solves that with two secure, self-service flows:
 
-1. **Password change** — user knows their current password and wants to update it
+1. **Password change**: user knows their current password and wants to update it
    - Enter username + current password → verify → set new password
    - Email field is locked in the UI by default; see [Optional: allow email changes](#optional-allow-email-changes-in-the-password-change-flow) below
 
-2. **Email-link reset** — user forgot their password (or it's their first login)
+2. **Email-link reset**: user forgot their password (or it's their first login)
    - Enter email address → receive a one-time reset link → click link → set new password
    - Email is the identity proof; email changes are always locked in this flow
 
@@ -66,7 +66,7 @@ These 3 files do not modify any existing OpenEMR files. They are standalone addi
 
 ### Database Tables (Auto-Created)
 
-The following tables are created automatically on first use — no manual SQL needed:
+The following tables are created automatically on first use, with no manual SQL needed:
 
 | Table | Purpose |
 |---|---|
@@ -93,7 +93,7 @@ The UI ships with the email field **locked** in both flows. The lock is controll
 $lockEmail = true; // line ~203
 ```
 
-Set it to `false` and the password-change flow (username + current password) will allow the user to update their `google_signin_email` at the same time as their password. All the backend logic (email format validation, uniqueness check against the `users` table, the `UPDATE users SET google_signin_email` SQL) is already in place — the flag is purely a UI gate.
+Set it to `false` and the password-change flow (username + current password) will allow the user to update their `google_signin_email` at the same time as their password. All the backend logic (email format validation, uniqueness check against the `users` table, the `UPDATE users SET google_signin_email` SQL) is already in place. The flag is purely a UI gate.
 
 Two notes:
 
@@ -102,7 +102,7 @@ Two notes:
 
 ### Branding (white-label)
 
-The page ships EMRFlow-branded by default, but it is fully white-label. All branding is driven by a single `$brand` config block at the top of `change_password.php` — nothing else needs to change:
+The page ships EMRFlow-branded by default, but it is fully white-label. All branding is driven by a single `$brand` config block at the top of `change_password.php`. Nothing else needs to change:
 
 ```php
 $brand = [
@@ -115,18 +115,18 @@ $brand = [
 ];
 ```
 
-- Set `accent` to any `#rrggbb` hex; the page derives all related shades (hover, depth, light tint, the wordmark accent) automatically — you only pick one color.
+- Set `accent` to any `#rrggbb` hex; the page derives all related shades (hover, depth, light tint, the wordmark accent) automatically, so you only pick one color.
 - Point `logo` at an image (e.g. `'sites/default/images/your-logo.png'`) to replace the built-in lock mark.
 - Set `name` to `''` to hide the wordmark, or to your own organization's name. The two-tone treatment is applied only to the default `EMRFlow` wordmark; any other name renders plain.
-- Leave `cta_text` readable against `cta` — light text on a light button (or dark on dark) fails contrast. The defaults pair dark text `#1F2937` on amber, which passes WCAG AA.
+- Leave `cta_text` readable against `cta`: light text on a light button (or dark on dark) fails contrast. The defaults pair dark text `#1F2937` on amber, which passes WCAG AA.
 
-The page has **no external dependencies** — no CDN, Bootstrap, jQuery, or web fonts. It renders entirely from inline CSS and SVG, so it works on locked-down or offline installs and never phones home.
+The page has **no external dependencies**: no CDN, Bootstrap, jQuery, or web fonts. It renders entirely from inline CSS and SVG, so it works on locked-down or offline installs and never phones home.
 
 ### Verification Checklist
 
 After installation:
 
-- [ ] Navigate to `https://your-domain.com/change_password.php` — form loads
+- [ ] Navigate to `https://your-domain.com/change_password.php`, form loads
 - [ ] Test legacy flow: enter a valid username + password → verify → change password → log in with new password
 - [ ] Test email flow: enter a valid email → receive reset link → click link → set password → log in
 - [ ] Verify password policy: try a weak password (e.g., "abc") → should be rejected
@@ -146,7 +146,7 @@ After installation:
 2. Make sure their **email address** is set in their OpenEMR user profile
 3. Tell the therapist: "Go to `https://your-domain.com/change_password.php`, click 'Forgot password / first-time setup', enter your email, and follow the link to set your password."
 
-Option B is preferred — no temporary password to communicate or forget.
+Option B is preferred: no temporary password to communicate or forget.
 
 ---
 
@@ -183,7 +183,7 @@ Found a bug? Have a suggestion? Open an issue or pull request on this repo. We r
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** — the same license as OpenEMR itself. See [LICENSE](LICENSE) for the full text.
+This project is licensed under the **GNU General Public License v3.0**, the same license as OpenEMR itself. See [LICENSE](LICENSE) for the full text.
 
 Copyright (c) 2026 Facets Novum LLC.
 
@@ -191,12 +191,12 @@ Copyright (c) 2026 Facets Novum LLC.
 
 ## About EMRFlow
 
-This package is built and maintained by **[Facets Novum](https://emrflow.com)**, makers of **EMRFlow** — the therapy documentation and billing platform for OpenEMR.
+This package is built and maintained by **[Facets Novum](https://emrflow.com)**, makers of **EMRFlow**, the therapy documentation and billing platform for OpenEMR.
 
 If your organization needs:
 - **FHIR R4 integration** with OpenEMR (automatic patient/practitioner/location sync)
 - **AI-powered clinical notes** (voice dictation → SOAP/DAP notes in seconds)
 - **Automated insurance claim submission** (eligibility checks, 837P generation, ERA posting)
-- **Solo practice mode** (independent therapists — no EHR required)
+- **Solo practice mode** (independent therapists, no EHR required)
 
 Visit **[emrflow.com](https://emrflow.com)** or email **darrell@facetsnovum.com** to schedule a demo.
