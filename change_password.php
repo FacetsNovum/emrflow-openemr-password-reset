@@ -60,7 +60,7 @@ declare(strict_types=1);
 // All related shades (hover, deep, tint) are derived automatically from `accent`.
 $brand = [
     'name'     => 'EMRFlow',
-    'tagline'  => 'Secure password management for OpenEMR',
+    'tagline'  => 'Secure password management for your EHR account',
     'accent'   => '#006699',
     'cta'      => '#E8913A',
     'cta_text' => '#1F2937',
@@ -235,7 +235,7 @@ $currentEmail = '';
 //
 // Note: the email-link reset flow ($isEmailLink) ignores this flag and is always
 // locked, because email is the identity proof in that flow.
-$lockEmail  = true;
+$lockEmail  = function_exists('pwdEmailChangeLocked') ? pwdEmailChangeLocked() : true;
 $isEmailLink  = false;
 $isEmailLocked = ($lockEmail || $isEmailLink);
 
@@ -629,7 +629,7 @@ if ($step === 'update') {
                                 id="username"
                                 name="username"
                                 class="control"
-                                placeholder="Your OpenEMR username"
+                                placeholder="Your EHR username"
                                 required
                                 autocomplete="username"
                                 value="<?= h($prefillUsername) ?>"
@@ -669,7 +669,7 @@ if ($step === 'update') {
                                 id="email"
                                 name="email"
                                 class="control"
-                                placeholder="The email on your OpenEMR account"
+                                placeholder="The email on your EHR account"
                                 required
                                 autocomplete="email"
                                 value="<?= h($prefillEmail) ?>"

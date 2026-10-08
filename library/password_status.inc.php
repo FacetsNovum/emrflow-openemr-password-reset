@@ -30,6 +30,20 @@
 
 declare(strict_types=1);
 
+/**
+ * Is changing the account email on the public password page switched off?
+ *
+ * One switch for the page (read-only field) AND the server (the update ignores
+ * any posted email). Until 2026-10-08 only the page honored it, so a hand-built
+ * request with a valid username + current password could still change
+ * google_signin_email. EMRFlow keys downstream lookups on that column, so it
+ * stays locked: an admin changes emails in Admin > Users.
+ */
+function pwdEmailChangeLocked(): bool
+{
+    return true;
+}
+
 // ------------------------------------------------------------
 // Internal safety wrappers (never surface schema errors to UI)
 // ------------------------------------------------------------

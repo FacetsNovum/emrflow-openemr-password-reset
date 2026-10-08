@@ -282,22 +282,21 @@ function sendResetEmail(string $toEmail, string $link): bool
     
     $hostFull = 'https://' . $host . '/change_password.php';
     
-    $subject = "OpenEMR Password Reset Link: Self Requested";
+    $subject = "Password reset link for your EHR account";
     $body =
-        "A password reset was requested for your OpenEMR account.\n\n" .
+        "A password reset was requested for your EHR account.\n\n" .
         "Use this link to set a new password:\n{$link}\n\n" .
         "If you did not request this, you can ignore this email.\n\n" .
         "Site: {$hostFull}\n";
 
     
-    $Bcc = $from;
+    // No Bcc: a reset link must reach only the person who asked for it. The old Bcc to
+    // no-reply@<host> bounced, and each bounce (link inside) landed in the site account's
+    // own mailbox (removed 2026-10-08).
     $from_name = "No Reply";
     $headers = array();
     $headers[] = 'From: '. $from_name .' <'. $from .'>';
     $headers[] = 'Content-Type: text/plain; charset=UTF-8';
-    $headers[] = 'Bcc: ' . $Bcc;
-    
-    // error_log("Bcc: $Bcc, from_name: $from_name, headers: ". print_r($headers, true));
     
     /* ORIG:
     $fromHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -494,6 +493,7 @@ if ($method === 'POST' && $action === 'request') {
         "SELECT id, username, google_signin_email
            FROM users
           WHERE username = ?
+            AND active = 1
           LIMIT 1",
         [$username]
     );
@@ -581,6 +581,7 @@ if ($method === 'POST' && $action === 'request_link') {
         "SELECT id, username, google_signin_email
            FROM users
           WHERE google_signin_email = ?
+            AND active = 1
           LIMIT 1",
         [$email]
     );
@@ -712,8 +713,10 @@ if ($method === 'POST' && $action === 'update') {
         ]);
     }
 
-    // Update email ONLY for legacy flow
-    if (!$isEmailLink) {
+    // Update email ONLY for legacy flow, and only when the page allows it. The lock is
+    // enforced here too, not just as a read-only field (2026-10-08).
+    $emailLocked = function_exists('pwdEmailChangeLocked') ? pwdEmailChangeLocked() : true;
+    if (!$isEmailLink && !$emailLocked) {
         if (!isValidEmail($newEmail)) {
             redirectToChangePassword($site_id, [
                 'step' => 'update',
