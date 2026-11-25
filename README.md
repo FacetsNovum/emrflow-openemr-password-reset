@@ -27,9 +27,9 @@ This package solves that with two secure, self-service flows:
 - One-time tokens stored as SHA-256 hashes (plaintext token never persisted)
 - CSRF protection on all forms
 - Rate limiting on token verification attempts
-- Rate limiting on every reset-link request, matched or not: 5 an hour per IP address and 3 an hour per email (the email is stored only as a SHA-256 hash)
-- No account enumeration: every reset-link request gets the same answer after the same minimum time (about one second), whether or not the email matches an account
-- The username is sent only in the reset email, to the address on file; the page never shows it and it never goes in a URL
+- Rate limiting on every reset-link request, matched or not: 5 an hour per IP address and 3 an hour per email (the email is stored only as a SHA-256 hash). The IP address is PHP's `REMOTE_ADDR`: behind a reverse proxy or CDN that doesn't pass the visitor's address through to it, every visitor shares one address, and the whole site gets 5 requests an hour. The per-email limit also means someone who knows a person's email can use up that person's 3 requests for the hour.
+- No account enumeration: every reset-link request gets the same answer, padded to at least one second, whether or not the email matches an account (a mail server that takes longer than a second to accept a message can still make matched requests slower)
+- In the email-link flow, the username is sent only in the reset email, to the address on file; that flow never puts it in a URL or shows it on the page to anyone who hasn't completed a reset (the username + current-password flow still carries the username the person typed)
 - Links in emails are built from the site's configured address (`site_addr_oath`), never the request's Host header, so a forged Host can't point a real person's reset email at another site
 - No Bcc of reset links; deactivated users get no link
 - HTTPOnly session cookies, SAMEORIGIN framing, strict referrer policy
@@ -81,23 +81,28 @@ The following tables are created automatically on first use, with no manual SQL 
 | `password_token_verify_log` | Rate-limiting log for token verification attempts |
 | `password_reset_requests` | Every reset-link request (IP address and a hashed email) for the request rate limit; rows older than a day are pruned |
 
+The OpenEMR database user must be able to create these tables (it normally can). If it can't, OpenEMR's own database error page appears instead of the form's answer.
+
 ### Email Configuration (Required for Reset-Link Flow)
 
 The email-link flow sends a one-time reset link to the user's email. For this to work:
 
 1. The server must be able to send mail with PHP's `mail()` (a working sendmail or MTA on the host).
-2. OpenEMR's **site address** must be set to your site's `https://` address: Admin → Config → Connectors → **Site Address Override** (`site_addr_oath`), for example `https://ehr.example.com`. The reset link, the "Site:" line and the sender (`no-reply@<that host>`) all come from it. **If it is empty or not `https://`, no reset email is sent** (the page still shows its usual answer, and the reason is written to the PHP error log).
+2. OpenEMR's **site address** must be set to your site's `https://` address: Admin → Config → Connectors → **Site Address Override** (`site_addr_oath`), for example `https://ehr.example.com`. Only a bare `https://host` (an optional `:port` is allowed) is accepted: a path is not, so this package expects OpenEMR at the root of its domain, as in the install steps above. The reset link, the "Site:" line and the sender (`no-reply@<that host>`) all come from it. **If it is empty or not `https://`, no reset email is sent** (the page still shows its usual answer, and the reason is written to the PHP error log).
 3. **Without these**, only the legacy flow works (username + current password → change password).
 
 ### Optional: allow email changes in the password-change flow
 
-The UI ships with the email field **locked** in both flows. The lock is controlled by a single flag near the top of `change_password.php`:
+The email field ships **locked** in both flows. The lock is one function in `library/password_status.inc.php`, which both the page and the server check:
 
 ```php
-$lockEmail = true; // line ~203
+function pwdEmailChangeLocked(): bool
+{
+    return true;
+}
 ```
 
-Set it to `false` and the password-change flow (username + current password) will allow the user to update their `google_signin_email` at the same time as their password. All the backend logic (email format validation, uniqueness check against the `users` table, the `UPDATE users SET google_signin_email` SQL) is already in place. The flag is purely a UI gate.
+Make it return `false` and the password-change flow (username + current password) will let the user update their `google_signin_email` at the same time as their password. The page shows an editable field, and the server accepts the posted email (format validation, a uniqueness check against the `users` table, then the `UPDATE users SET google_signin_email`). While it returns `true`, the server ignores any posted email, so editing only the page has no effect.
 
 Two notes:
 
@@ -111,7 +116,7 @@ The page ships EMRFlow-branded by default, but it is fully white-label. All bran
 ```php
 $brand = [
     'name'     => 'EMRFlow',                               // wordmark in the header ('' hides it)
-    'tagline'  => 'Secure password management for OpenEMR', // small line under the card
+    'tagline'  => 'Secure password management for your EHR account', // small line under the card
     'accent'   => '#006699',                               // header band + chrome color
     'cta'      => '#E8913A',                               // primary button fill
     'cta_text' => '#1F2937',                               // text on the primary button (must contrast with cta)
@@ -179,7 +184,7 @@ No other OpenEMR files are affected.
 
 ## Compatibility
 
-- **OpenEMR:** 7.0.2 Patch 3 and 8.0.0 Patch 3 (both tested). Uses only `sqlQuery()`, `sqlStatement()`, `AuthHash`, and `$GLOBALS`, which are stable across OpenEMR 7.x, 8.0, and 8.1. On a clean 8.0.0(3) install both flows were verified end to end: auto table creation, the username + current-password change flow (with `users_secure` history shift), the email-link reset flow, password-policy enforcement, and reuse prevention against the last 5 passwords. The same battery was re-run against the 8.1 development build (8.1.0-dev) with identical results.
+- **OpenEMR:** 7.0.2 Patch 3 and 8.0.0 Patch 3 (both tested). Uses only `sqlQuery()`, `sqlStatement()`, `AuthHash`, and `$GLOBALS`, which are stable across OpenEMR 7.x, 8.0, and 8.1. On a clean 8.0.0(3) install both flows were verified end to end: auto table creation, the username + current-password change flow (with `users_secure` history shift), the email-link reset flow, password-policy enforcement, and reuse prevention against the last 5 passwords. The same battery was re-run against the 8.1 development build (8.1.0-dev) with identical results. Those runs predate the November 2026 security changes (the request rate limit, the same-answer reset request and the site-address links); those changes run in production on OpenEMR 7.0.2, and the clean-install battery hasn't been re-run since.
 - **PHP:** 8.0+ required
 - **Dependencies:** None beyond OpenEMR's core (no Composer packages needed)
 
