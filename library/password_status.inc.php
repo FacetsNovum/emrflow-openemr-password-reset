@@ -478,6 +478,76 @@ function rateLimitPasswordSetupRequest(string $ip, int $maxPerHour = 5): bool
 }
 
 // ------------------------------------------------------------
+// password_reset_requests: every email-link request, matched or not (2026-11-13)
+// ------------------------------------------------------------
+// rateLimitPasswordSetupRequest() above counts token rows, and only an email that matches an account creates one, so
+// tries with unknown emails were never limited. This table records every request (the address it came from and a
+// one-way hash of the email, never the email itself) so the limit holds either way.
+
+function ensurePasswordResetRequestsTable(): bool
+{
+    static $ok = null;
+    if ($ok !== null) {
+        return $ok;
+    }
+    // Guarded like the other tables here: a database error is logged and never turns the page into an error.
+    $ok = pwdSchemaTry(function () {
+        sqlStatementNoLog(
+            "CREATE TABLE IF NOT EXISTS `password_reset_requests` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `request_ip` VARCHAR(64) NOT NULL,
+                `email_hash` CHAR(64) NOT NULL,
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                INDEX `idx_prr_ip_created` (`request_ip`, `created_at`),
+                INDEX `idx_prr_email_created` (`email_hash`, `created_at`)
+            ) ENGINE=InnoDB"
+        );
+    });
+    return $ok;
+}
+
+/**
+ * Records this request and says whether it is over the limit: more than $maxPerIpPerHour from one address, or more than
+ * $maxPerEmailPerHour for one email, in the last hour (the request being made counts after it is checked, so the
+ * sixth from one address is the first refused at 5). The caller answers a refused request exactly like any other.
+ */
+function rateLimitPasswordResetRequest(string $ip, string $email, int $maxPerIpPerHour = 5, int $maxPerEmailPerHour = 3): bool
+{
+    if (!ensurePasswordResetRequestsTable()) {
+        return false; // the table can't be made: don't block resets; the error is in the PHP log
+    }
+
+    // A plain SHA-256 is enough: anyone who can read this table can read users.google_signin_email in the same database.
+    $emailHash = hash('sha256', strtolower(trim($email)));
+    $limited = false;
+    pwdSchemaTry(function () use ($ip, $emailHash, $maxPerIpPerHour, $maxPerEmailPerHour, &$limited) {
+        $byIp = sqlQuery(
+            "SELECT COUNT(*) AS cnt FROM `password_reset_requests`
+              WHERE request_ip = ? AND created_at > (NOW() - INTERVAL 1 HOUR)",
+            [$ip]
+        );
+        $byEmail = sqlQuery(
+            "SELECT COUNT(*) AS cnt FROM `password_reset_requests`
+              WHERE email_hash = ? AND created_at > (NOW() - INTERVAL 1 HOUR)",
+            [$emailHash]
+        );
+        sqlStatementNoLog(
+            "INSERT INTO `password_reset_requests` (request_ip, email_hash) VALUES (?, ?)",
+            [$ip, $emailHash]
+        );
+        // Housekeeping: keep a day of rows, on about one request in fifty.
+        if (random_int(1, 50) === 1) {
+            sqlStatementNoLog("DELETE FROM `password_reset_requests` WHERE created_at < (NOW() - INTERVAL 1 DAY)");
+        }
+        $limited = ((int)($byIp['cnt'] ?? 0) >= $maxPerIpPerHour)
+            || ((int)($byEmail['cnt'] ?? 0) >= $maxPerEmailPerHour);
+    });
+
+    return $limited;
+}
+
+// ------------------------------------------------------------
 // Optional: anti-hammer token verification throttling
 // ------------------------------------------------------------
 

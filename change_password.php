@@ -7,6 +7,8 @@
 //      their password or need initial setup cannot access the built-in password change
 //      (which requires being logged in). This provides two secure flows: legacy credential
 //      verification and email-based one-time token reset.
+// 2026-11-13: the email option also sends the username (to the email on file only); the cancel link no longer puts
+//      the username in the address.
 // ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -171,18 +173,13 @@ function pwdSanitizeEmailPrefill(string $v): string
 if (isset($_GET['cancelled'])) {
     unset($_SESSION['last_user_id']);
 
-    $u = '';
-    if (!empty($_GET['username']) && is_string($_GET['username'])) {
-        $u = pwdSanitizeUsername($_GET['username']);
-    } elseif (!empty($_SESSION['last_username']) && is_string($_SESSION['last_username'])) {
-        $u = pwdSanitizeUsername($_SESSION['last_username']);
-    }
-
+    // No username in the address (2026-11-13): it would sit in server logs and browser history. The page still
+    // pre-fills from the session, which only ever holds a username the person typed and proved or reached by the
+    // emailed link (the email request step no longer stores one).
     header(
         "Location: change_password.php?step=request"
         . "&site=" . urlencode($site_id)
-        . ($u !== '' ? "&username=" . urlencode($u) : "")
-        . "&success=" . urlencode("Password change cancelled. You can start a new request below.")
+        . "&success=" . urlencode("Password change canceled. You can start a new request below.")
     );
     exit;
 }
@@ -653,7 +650,7 @@ if ($step === 'update') {
                 <!-- Email-link flow: email one-time setup/reset link -->
                 <div class="alert alert-info">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg>
-                    <span>Don't know your current password? We can email you a one-time setup and reset link.</span>
+                    <span>Don't know your current password or username? We can email you your username and a one-time setup and reset link.</span>
                 </div>
 
                 <form id="emailLinkForm" method="POST" action="change_password_process.php">

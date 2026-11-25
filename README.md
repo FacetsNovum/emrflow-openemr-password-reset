@@ -27,6 +27,11 @@ This package solves that with two secure, self-service flows:
 - One-time tokens stored as SHA-256 hashes (plaintext token never persisted)
 - CSRF protection on all forms
 - Rate limiting on token verification attempts
+- Rate limiting on every reset-link request, matched or not: 5 an hour per IP address and 3 an hour per email (the email is stored only as a SHA-256 hash)
+- No account enumeration: every reset-link request gets the same answer after the same minimum time (about one second), whether or not the email matches an account
+- The username is sent only in the reset email, to the address on file; the page never shows it and it never goes in a URL
+- Links in emails are built from the site's configured address (`site_addr_oath`), never the request's Host header, so a forged Host can't point a real person's reset email at another site
+- No Bcc of reset links; deactivated users get no link
 - HTTPOnly session cookies, SAMEORIGIN framing, strict referrer policy
 - Audit trail via `password_token_verify_log` table
 
@@ -74,16 +79,15 @@ The following tables are created automatically on first use, with no manual SQL 
 | `users_password_baseline` | Snapshot of original password hash for change tracking |
 | `users_password_status` | Per-user status flag (default / changed) + timestamps |
 | `password_token_verify_log` | Rate-limiting log for token verification attempts |
+| `password_reset_requests` | Every reset-link request (IP address and a hashed email) for the request rate limit; rows older than a day are pruned |
 
 ### Email Configuration (Required for Reset-Link Flow)
 
 The email-link flow sends a one-time reset link to the user's email. For this to work:
 
-1. OpenEMR must have SMTP configured:
-   - Admin → Config → Notifications → **Email Notification Settings**
-   - Set SMTP host, port, username, password, and encryption type
-2. The "From" address uses `$GLOBALS['patient_reminder_sender_email']`
-3. **Without email configured**, only the legacy flow works (username + current password → change password). The email-link flow will silently fail to send.
+1. The server must be able to send mail with PHP's `mail()` (a working sendmail or MTA on the host).
+2. OpenEMR's **site address** must be set to your site's `https://` address: Admin → Config → Connectors → **Site Address Override** (`site_addr_oath`), for example `https://ehr.example.com`. The reset link, the "Site:" line and the sender (`no-reply@<that host>`) all come from it. **If it is empty or not `https://`, no reset email is sent** (the page still shows its usual answer, and the reason is written to the PHP error log).
+3. **Without these**, only the legacy flow works (username + current password → change password).
 
 ### Optional: allow email changes in the password-change flow
 
@@ -128,7 +132,8 @@ After installation:
 
 - [ ] Navigate to `https://your-domain.com/change_password.php`, form loads
 - [ ] Test legacy flow: enter a valid username + password → verify → change password → log in with new password
-- [ ] Test email flow: enter a valid email → receive reset link → click link → set password → log in
+- [ ] Test email flow: enter a valid email → receive an email with your username and a reset link → click link → set password → log in
+- [ ] Enter an email that has no account: the page shows the same answer as for a real one
 - [ ] Verify password policy: try a weak password (e.g., "abc") → should be rejected
 - [ ] Verify reuse prevention: try to "change" to the same password → should be rejected
 
@@ -159,12 +164,13 @@ cd /path/to/openemr/public_html
 rm change_password.php change_password_process.php library/password_status.inc.php
 ```
 
-The 4 database tables can be dropped if desired (they're inert without the PHP files):
+The 5 database tables can be dropped if desired (they're inert without the PHP files):
 ```sql
 DROP TABLE IF EXISTS password_setup_tokens;
 DROP TABLE IF EXISTS users_password_baseline;
 DROP TABLE IF EXISTS users_password_status;
 DROP TABLE IF EXISTS password_token_verify_log;
+DROP TABLE IF EXISTS password_reset_requests;
 ```
 
 No other OpenEMR files are affected.

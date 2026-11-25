@@ -16,6 +16,10 @@
  * Flows:
  *  1) Legacy verify: username + current password -> legacy token -> update password (+ optional email)
  *  2) Email-link reset: email -> one-time hashed token -> update password ONLY (email locked)
+ *     2026-11-13: the email also
+ *     carries the account's username (it goes only to the email on file); the page no longer learns or shows the
+ *     username; every request answers the same way after the same floor time; every request counts toward a limit
+ *     by IP address and by email, matched or not.
  *
  * IMPORTANT:
  *  - NO output (no BOM, no whitespace before <?php)
@@ -272,20 +276,28 @@ function passwordMeetsPolicy(string $pwd): bool
 // -----------------------
 // Email sending (dependency-light)
 // -----------------------
-function sendResetEmail(string $toEmail, string $link): bool
+function sendResetEmail(string $toEmail, string $link, string $username, string $base): bool
 {
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $from = "no-reply@" . preg_replace('/[^A-Za-z0-9\.\-]/', '', (string)$host);
-    if (empty($from) || strpos($from, '@') === false) {
+    // The sender and the "Site:" line come from the site's configured address, never the request's Host header
+    // (2026-11-13 security review; see canonicalSiteBase()).
+    $host = (string) parse_url($base, PHP_URL_HOST);
+    $from = "no-reply@" . preg_replace('/[^A-Za-z0-9\.\-]/', '', $host);
+    if ($host === '' || strpos($from, '@') === false) {
         $from = "no-reply@localhost";
     }
-    
-    $hostFull = 'https://' . $host . '/change_password.php';
-    
-    $subject = "Password reset link for your EHR account";
+
+    $hostFull = $base . '/change_password.php';
+
+    // The username goes only here: this email reaches only the address on file for the account (2026-11-13).
+    $usernameBlock = $username !== ''
+        ? "Your username: {$username}\n(Type it exactly like that, capitals included. It isn't your email address.)\n\n"
+        : '';
+
+    $subject = "Your EHR username and password reset link";
     $body =
         "A password reset was requested for your EHR account.\n\n" .
-        "Use this link to set a new password:\n{$link}\n\n" .
+        $usernameBlock .
+        "Use this link to set a new password (it works once, for 30 minutes):\n{$link}\n\n" .
         "If you did not request this, you can ignore this email.\n\n" .
         "Site: {$hostFull}\n";
 
@@ -313,6 +325,23 @@ function sendResetEmail(string $toEmail, string $link): bool
         error_log("[PWD] mail() failed for password reset email to: " . substr($toEmail, 0, 3) . '***');
     }
     return $sent;
+}
+
+/**
+ * The site's own address for links in emails: the EHR's configured site address for sign-in (globals site_addr_oath,
+ * for example https://ehr.example.com), never the request's Host header, which a client can forge so that a real
+ * person's reset email points at another site (2026-11-13 security review). Returns '' unless it is a plain https://
+ * address; the caller then sends nothing.
+ */
+function canonicalSiteBase(): string
+{
+    $v = (string) ($GLOBALS['site_addr_oath'] ?? '');
+    if ($v === '') {
+        $row = sqlQuery("SELECT gl_value FROM globals WHERE gl_name = 'site_addr_oath' LIMIT 1");
+        $v = (string) ($row['gl_value'] ?? '');
+    }
+    $v = rtrim(trim($v), '/');
+    return preg_match('#^https://[A-Za-z0-9.-]+(:[0-9]+)?$#', $v) === 1 ? $v : '';
 }
 
 // -----------------------
@@ -567,14 +596,26 @@ if ($method === 'POST' && $action === 'request_link') {
     }
 
     $ip = getClientIp();
+    $startedAt = microtime(true);
 
     // Always show generic success (no enumeration)
-    $genericSuccess = 'If an account exists for that email, a secure link has been sent. Please check your spam/junk folder.';
+    $genericSuccess = "If an account exists for that email, we've sent its username and a secure link. Please check your spam/junk folder.";
 
-    // error_log("2. PRE sendResetEmail...email: $email, ip: $ip");
- 
-    if (function_exists('rateLimitPasswordSetupRequest') && rateLimitPasswordSetupRequest($ip, 5)) {
+    // Every outcome below answers the same way after the same floor time, matched or not: the matched path creates a
+    // token and sends mail, which would otherwise make it slower (OWASP Forgot Password Cheat Sheet: "Ensure that
+    // responses return in a consistent amount of time"). 2026-11-13.
+    $answer = static function () use ($site_id, $genericSuccess, $startedAt): void {
+        $wait = 1.0 - (microtime(true) - $startedAt);
+        if ($wait > 0) {
+            usleep((int) round($wait * 1000000));
+        }
         redirectToChangePassword($site_id, ['step' => 'request', 'success' => $genericSuccess]);
+    };
+
+    // Every request counts, matched or not: by IP address (5 an hour) and by email (3 an hour). The old limit counted
+    // token rows, which only a matching email creates, so tries with unknown emails were never limited. 2026-11-13.
+    if (function_exists('rateLimitPasswordResetRequest') && rateLimitPasswordResetRequest($ip, $email, 5, 3)) {
+        $answer();
     }
 
     $user = sqlQuery(
@@ -587,36 +628,39 @@ if ($method === 'POST' && $action === 'request_link') {
     );
 
     if (empty($user['id'])) {
-        redirectToChangePassword($site_id, ['step' => 'request', 'success' => $genericSuccess]);
+        $answer();
     }
 
     $userId = (int)$user['id'];
 
     if (!function_exists('createPasswordSetupToken')) {
         // Soft fail without disclosure
-        redirectToChangePassword($site_id, ['step' => 'request', 'success' => $genericSuccess]);
+        $answer();
+    }
+
+    // The link's address comes from the site's own setting, never the request's Host header (2026-11-13).
+    $base = canonicalSiteBase();
+    if ($base === '') {
+        error_log('[PWD] reset email not sent: the site address (site_addr_oath) is missing or not https');
+        $answer();
     }
 
     // 30 min TTL, hashed-only storage
     $rawToken = createPasswordSetupToken($userId, 1800);
     if ($rawToken === null || $rawToken === '') {
-        redirectToChangePassword($site_id, ['step' => 'request', 'success' => $genericSuccess]);
+        $answer();
     }
 
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $https = $_SERVER['HTTPS'] ?? '';
-    $scheme = (!empty($https) && $https !== 'off') ? 'https' : 'http';
-
-    $link = "{$scheme}://{$host}/change_password.php?step=update&site=" .
+    $link = "{$base}/change_password.php?step=update&site=" .
         urlencode($site_id) . "&token=" . urlencode($rawToken);
 
     
-    // Best-effort email send; never disclose
-    sendResetEmail($email, $link);
+    // Best-effort email send; never disclose. The username goes in the email only: the page never learns it, so a
+    // browser that types someone's email can't see their username (before 2026-11-13 it was kept in the session and
+    // filled into the visible Username box).
+    sendResetEmail($email, $link, (string)($user['username'] ?? ''), $base);
 
-    $_SESSION['last_username'] = (string)($user['username'] ?? '');
-
-    redirectToChangePassword($site_id, ['step' => 'request', 'success' => $genericSuccess]);
+    $answer();
 }
 
 // -----------------------
